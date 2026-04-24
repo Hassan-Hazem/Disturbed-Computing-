@@ -4,4 +4,10 @@ class Scheduler:
 
     def handle_request(self, request):
         print(f"[Scheduler] Handling request {request.id}")
-        return self.load_balancer.dispatch(request)
+        response, reassignments = self.load_balancer.dispatch(request)
+        if reassignments > 0:
+            print(
+                f"[Scheduler] Request {request.id} reassigned {reassignments} "
+                "time(s) before completion"
+            )
+        return response, reassignments
