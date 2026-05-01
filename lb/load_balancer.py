@@ -5,8 +5,8 @@ class LoadBalancer:
     def __init__(self, workers, strategy="round_robin"):
         if not workers:
             raise ValueError("LoadBalancer requires at least one worker")
-        if strategy not in ("round_robin", "least_connections"):
-            raise ValueError("strategy must be 'round_robin' or 'least_connections'")
+        if strategy not in ("round_robin", "least_connections", "load_aware"):
+            raise ValueError("strategy must be 'round_robin', 'least_connections', or 'load_aware'")
 
         self.workers = workers
         self.strategy = strategy
@@ -31,7 +31,19 @@ class LoadBalancer:
                     active_workers,
                     key=lambda worker: (worker.get_active_connections(), worker.id),
                 )
+            
+            if self.strategy == "load_aware":
+                # Load-aware routing: considers both active connections and processed requests
+                def worker_load(w):
+                    # Priority: fewer connections, higher efficiency (lower latency history)
+                    return (
+                        w.get_active_connections(),
+                        -w.get_processed_count(),  # Negative: prefer workers with more experience
+                        w.id
+                    )
+                return min(active_workers, key=worker_load)
 
+            # Round Robin (default)
             total_workers = len(self.workers)
             for _ in range(total_workers):
                 worker = self.workers[self._index]
