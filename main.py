@@ -12,12 +12,33 @@ This system demonstrates:
 To run with different configurations, modify config.py or pass arguments to main().
 """
 
+import argparse
+import logging
+
 from client.load_generator import run_load_test
 from lb.load_balancer import LoadBalancer
 from master.scheduler import Scheduler
 from workers.gpu_worker import GPUWorker
 from common.monitoring import PerformanceMonitor
 import config
+
+
+def configure_logging() -> None:
+    file_handler = logging.FileHandler(config.LOG_FILE, encoding="utf-8")
+    file_handler.setLevel(logging.INFO)
+    handlers = [file_handler]
+    if config.ENABLE_DETAILED_LOGGING:
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(logging.INFO)
+        handlers.append(stream_handler)
+
+    root = logging.getLogger()
+    root.handlers.clear()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        handlers=handlers,
+    )
 
 
 def main(
@@ -35,7 +56,8 @@ def main(
         strategy: Load balancing strategy (default from config)
         simulate_failures: Whether to simulate node failures (default from config)
     """
-    # Use provided args or fall back to config
+    configure_logging()
+
     num_workers = num_workers or config.NUM_WORKERS
     num_users = num_users or config.NUM_USERS
     strategy = strategy or config.LOAD_BALANCING_STRATEGY
@@ -49,9 +71,10 @@ def main(
     print(f"  - Users: {num_users}")
     print(f"  - Strategy: {strategy}")
     print(f"  - Failure Simulation: {simulate_failures}")
+    print(f"  - LLM Provider: {config.LLM_PROVIDER}")
+    print(f"  - Worker Parallelism: {config.WORKER_PARALLELISM}")
     print("="*70 + "\n")
     
-    # Initialize system components
     workers = [GPUWorker(worker_id=i + 1) for i in range(num_workers)]
     load_balancer = LoadBalancer(workers, strategy=strategy)
     scheduler = Scheduler(load_balancer)
@@ -84,12 +107,34 @@ def main(
             count = metrics['worker_processed'][worker_id]
             print(f"  - Worker {worker_id}: {count} requests")
 
+    scheduler.print_worker_status()
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Distributed LLM load-balancing demo")
+    parser.add_argument("--workers", type=int, default=None, help="Number of GPU workers")
+    parser.add_argument("--users", type=int, default=None, help="Number of concurrent users")
+    parser.add_argument(
+        "--strategy",
+        choices=["round_robin", "least_connections", "load_aware"],
+        default=None,
+        help="Load-balancing strategy",
+    )
+    parser.add_argument(
+        "--failures",
+        choices=["on", "off"],
+        default=None,
+        help="Enable or disable worker failure simulation",
+    )
+    return parser.parse_args()
+
 
 if __name__ == "__main__":
-    # Run with default configuration from config.py
-    main()
-    
-    # Uncomment below to test with different strategies:
-    # main(strategy="round_robin", num_users=100)
-    # main(strategy="least_connections", num_users=100)
-    # main(strategy="load_aware", num_users=100)
+    args = parse_args()
+    failures = None if args.failures is None else args.failures == "on"
+    main(
+        num_workers=args.workers,
+        num_users=args.users,
+        strategy=args.strategy,
+        simulate_failures=failures,
+    )

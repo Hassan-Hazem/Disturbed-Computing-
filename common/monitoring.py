@@ -5,7 +5,7 @@ Tracks latency, throughput, resource utilization, and fault tolerance metrics.
 
 import time
 from threading import Lock
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 class PerformanceMonitor:
@@ -21,8 +21,9 @@ class PerformanceMonitor:
         self.reassigned_requests = 0
         self.worker_stats: Dict[int, Dict] = {}
     
-    def record_request(self, request_id: int, latency: float, success: bool, 
-                      reassignments: int = 0, worker_id: int = None):
+    def record_request(self, request_id: int, latency: float, success: bool,
+                      reassignments: int = 0, worker_id: Optional[int] = None,
+                      provider: str = "unknown"):
         """Record metrics for a completed request."""
         with self.lock:
             if success:
@@ -39,10 +40,13 @@ class PerformanceMonitor:
                     self.worker_stats[worker_id] = {
                         'requests': 0,
                         'total_latency': 0.0,
-                        'failures': 0
+                        'failures': 0,
+                        'providers': {}
                     }
                 self.worker_stats[worker_id]['requests'] += 1
                 self.worker_stats[worker_id]['total_latency'] += latency
+                providers = self.worker_stats[worker_id]['providers']
+                providers[provider] = providers.get(provider, 0) + 1
     
     def get_statistics(self) -> Dict:
         """Get aggregated performance statistics."""
@@ -104,6 +108,9 @@ class PerformanceMonitor:
             for worker_id in sorted(stats['worker_stats'].keys()):
                 ws = stats['worker_stats'][worker_id]
                 avg_w_latency = ws['total_latency'] / ws['requests'] if ws['requests'] > 0 else 0
+                providers = ", ".join(
+                    f"{provider}:{count}" for provider, count in sorted(ws.get('providers', {}).items())
+                )
                 print(f"  Worker {worker_id}: {ws['requests']} requests, "
-                      f"avg latency {avg_w_latency:.4f}s")
+                      f"avg latency {avg_w_latency:.4f}s, providers [{providers}]")
         print("="*60 + "\n")
