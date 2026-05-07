@@ -5,6 +5,7 @@ The system supports real free/low-cost providers:
 - OpenRouter chat completions when OPENROUTER_API_KEY is configured.
 - HuggingFace Inference API when HUGGINGFACE_API_KEY is configured.
 - Local Ollama when LLM_PROVIDER=ollama.
+- LM Studio or any OpenAI-compatible server when configured.
 
 For classroom load tests without credentials, ALLOW_SIMULATED_LLM keeps the
 distributed pipeline runnable while clearly marking responses as simulated.
@@ -76,10 +77,12 @@ class LLMClient:
             candidates.append("openrouter")
         if config.HUGGINGFACE_API_KEY:
             candidates.append("huggingface")
-        if "ollama" in config.OLLAMA_BASE_URL.lower() and config.OLLAMA_MODEL:
-            # Ollama is only tried automatically when explicitly enabled by URL/model.
-            if config.OLLAMA_BASE_URL != "http://localhost:11434":
-                candidates.append("ollama")
+        if config.OLLAMA_BASE_URL != "http://localhost:11434":
+            candidates.append("ollama")
+        if config.OPENAI_COMPATIBLE_BASE_URL != "http://localhost:1234/v1":
+            candidates.append("openai_compatible")
+        if config.LMSTUDIO_BASE_URL != "http://localhost:1234/v1":
+            candidates.append("lmstudio")
         if not candidates and config.ALLOW_SIMULATED_LLM:
             candidates.append("simulated")
         return candidates
@@ -119,6 +122,20 @@ class LLMClient:
                     text = await self._huggingface(prompt)
                 elif provider == "ollama":
                     text = await self._ollama(prompt)
+                elif provider == "lmstudio":
+                    text = await self._openai_compatible(
+                        prompt=prompt,
+                        base_url=config.LMSTUDIO_BASE_URL,
+                        model=config.LMSTUDIO_MODEL,
+                        api_key="",
+                    )
+                elif provider == "openai_compatible":
+                    text = await self._openai_compatible(
+                        prompt=prompt,
+                        base_url=config.OPENAI_COMPATIBLE_BASE_URL,
+                        model=config.OPENAI_COMPATIBLE_MODEL,
+                        api_key=config.OPENAI_COMPATIBLE_API_KEY,
+                    )
                 elif provider == "simulated":
                     text = await self._simulated(query, context)
                 else:
@@ -207,6 +224,30 @@ class LLMClient:
             timeout=config.LLM_TIMEOUT + 1,
         )
         return data.get("response", "").strip()
+
+    async def _openai_compatible(
+        self,
+        prompt: str,
+        base_url: str,
+        model: str,
+        api_key: str = "",
+    ) -> str:
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": config.LLM_MAX_TOKENS,
+            "temperature": 0.2,
+        }
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        url = f"{base_url.rstrip('/')}/chat/completions"
+        data = await asyncio.wait_for(
+            asyncio.to_thread(_post_json, url, payload, headers, config.LLM_TIMEOUT),
+            timeout=config.LLM_TIMEOUT + 1,
+        )
+        return data["choices"][0]["message"]["content"].strip()
 
     async def _simulated(self, query: str, context: str) -> str:
         base_latency = config.LLM_BASE_LATENCY

@@ -25,14 +25,19 @@ QUERY_COMPLEXITY_FACTOR = float(os.getenv("QUERY_COMPLEXITY_FACTOR", "0.02"))
 GPU_SIMULATION_DELAY = float(os.getenv("GPU_SIMULATION_DELAY", "0.015"))
 
 # Real LLM provider configuration.
-# LLM_PROVIDER: auto, openrouter, huggingface, ollama, simulated.
+# LLM_PROVIDER: auto, openrouter, huggingface, ollama, lmstudio, openai_compatible, simulated.
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto").lower()
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
 HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "")
 HUGGINGFACE_MODEL = os.getenv("HUGGINGFACE_MODEL", "mistralai/Mistral-7B-Instruct-v0.3")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
+OPENAI_COMPATIBLE_BASE_URL = os.getenv("OPENAI_COMPATIBLE_BASE_URL", "http://localhost:1234/v1")
+OPENAI_COMPATIBLE_API_KEY = os.getenv("OPENAI_COMPATIBLE_API_KEY", "")
+OPENAI_COMPATIBLE_MODEL = os.getenv("OPENAI_COMPATIBLE_MODEL", "local-model")
+LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+LMSTUDIO_MODEL = os.getenv("LMSTUDIO_MODEL", "local-model")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "20"))
 LLM_RETRIES = int(os.getenv("LLM_RETRIES", "2"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "160"))
