@@ -6,9 +6,10 @@ import os
 # System Configuration
 NUM_WORKERS = int(os.getenv("NUM_WORKERS", "4"))
 NUM_USERS = int(os.getenv("NUM_USERS", "1000"))
-LOAD_BALANCING_STRATEGY = os.getenv("LOAD_BALANCING_STRATEGY", "load_aware")
-WORKER_PARALLELISM = int(os.getenv("WORKER_PARALLELISM", "8"))
+LOAD_BALANCING_STRATEGY = os.getenv("LOAD_BALANCING_STRATEGY", "round_robin")
+WORKER_PARALLELISM = int(os.getenv("WORKER_PARALLELISM", "16"))
 CLIENT_CONCURRENCY_LIMIT = int(os.getenv("CLIENT_CONCURRENCY_LIMIT", "1000"))
+HTTP_CLIENT_THREADS = int(os.getenv("HTTP_CLIENT_THREADS", "128"))
 
 # Failure Simulation
 SIMULATE_FAILURES = os.getenv("SIMULATE_FAILURES", "true").lower() == "true"
@@ -19,29 +20,20 @@ MAX_TASK_RETRIES = int(os.getenv("MAX_TASK_RETRIES", "3"))
 REASSIGNMENT_BACKOFF = float(os.getenv("REASSIGNMENT_BACKOFF", "0.02"))
 
 # Performance Settings
-LLM_BASE_LATENCY = float(os.getenv("LLM_BASE_LATENCY", "0.15"))
-LLM_VARIANCE = float(os.getenv("LLM_VARIANCE", "0.1"))
-QUERY_COMPLEXITY_FACTOR = float(os.getenv("QUERY_COMPLEXITY_FACTOR", "0.02"))
-GPU_SIMULATION_DELAY = float(os.getenv("GPU_SIMULATION_DELAY", "0.015"))
+ROUTING_DEFAULT_LATENCY = float(os.getenv("ROUTING_DEFAULT_LATENCY", "1.0"))
+WORKER_LOCAL_OVERHEAD = float(os.getenv("WORKER_LOCAL_OVERHEAD", "0.0"))
 
 # Real LLM provider configuration.
-# LLM_PROVIDER: auto, openrouter, huggingface, ollama, lmstudio, openai_compatible, simulated.
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto").lower()
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
-HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "")
-HUGGINGFACE_MODEL = os.getenv("HUGGINGFACE_MODEL", "mistralai/Mistral-7B-Instruct-v0.3")
+# LLM_PROVIDER: openai_compatible for Thunder/vLLM, or ollama for local fallback.
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai_compatible").lower()
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
-OPENAI_COMPATIBLE_BASE_URL = os.getenv("OPENAI_COMPATIBLE_BASE_URL", "http://localhost:1234/v1")
-OPENAI_COMPATIBLE_API_KEY = os.getenv("OPENAI_COMPATIBLE_API_KEY", "")
-OPENAI_COMPATIBLE_MODEL = os.getenv("OPENAI_COMPATIBLE_MODEL", "local-model")
-LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
-LMSTUDIO_MODEL = os.getenv("LMSTUDIO_MODEL", "local-model")
-LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "20"))
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+OPENAI_COMPATIBLE_BASE_URL = os.getenv("OPENAI_COMPATIBLE_BASE_URL", "http://localhost:8000/v1")
+OPENAI_COMPATIBLE_API_KEY = os.getenv("OPENAI_COMPATIBLE_API_KEY", "EMPTY")
+OPENAI_COMPATIBLE_MODEL = os.getenv("OPENAI_COMPATIBLE_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "300"))
 LLM_RETRIES = int(os.getenv("LLM_RETRIES", "2"))
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "160"))
-ALLOW_SIMULATED_LLM = os.getenv("ALLOW_SIMULATED_LLM", "true").lower() == "true"
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "64"))
 
 # RAG Configuration
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "3"))

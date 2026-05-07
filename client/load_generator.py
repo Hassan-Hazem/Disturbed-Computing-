@@ -5,6 +5,7 @@ Async client load generator for 1000+ concurrent LLM requests.
 import asyncio
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import config
 from common.models import Request
@@ -77,6 +78,10 @@ async def run_load_test_async(
     start_time = time.perf_counter()
     concurrency = min(num_users, max(1, config.CLIENT_CONCURRENCY_LIMIT))
     semaphore = asyncio.Semaphore(concurrency)
+    loop = asyncio.get_running_loop()
+    loop.set_default_executor(
+        ThreadPoolExecutor(max_workers=max(1, config.HTTP_CLIENT_THREADS))
+    )
 
     async def guarded_user(user_id):
         async with semaphore:

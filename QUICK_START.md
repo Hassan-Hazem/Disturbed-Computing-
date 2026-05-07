@@ -1,66 +1,81 @@
 # Quick Start
 
-## Smoke Test
+The final delivery path uses a real LLM only. The default provider is an
+OpenAI-compatible server, intended for Thunder Compute running vLLM.
+
+## 1. Configure Thunder/vLLM Provider
+
+If using Thunder's forwarded port URL:
 
 ```powershell
-python test_quick.py
+$env:LLM_PROVIDER="openai_compatible"
+$env:OPENAI_COMPATIBLE_BASE_URL="https://INSTANCE_UUID-8000.thundercompute.net/v1"
+$env:OPENAI_COMPATIBLE_MODEL="Qwen/Qwen2.5-1.5B-Instruct"
+$env:OPENAI_COMPATIBLE_API_KEY="EMPTY"
 ```
 
-This runs 100 async users, uses `load_aware` routing, kills one worker during execution, and verifies reassignment.
-
-## 1000-User Test
+If using SSH tunnel:
 
 ```powershell
-python main.py --users 1000 --workers 4 --strategy load_aware --failures on
+$env:LLM_PROVIDER="openai_compatible"
+$env:OPENAI_COMPATIBLE_BASE_URL="http://localhost:8000/v1"
+$env:OPENAI_COMPATIBLE_MODEL="Qwen/Qwen2.5-1.5B-Instruct"
+$env:OPENAI_COMPATIBLE_API_KEY="EMPTY"
 ```
 
-## Strategy Comparison
+## 2. Configure Load-Test Settings
 
 ```powershell
-python test_strategies.py
+$env:CLIENT_CONCURRENCY_LIMIT="128"
+$env:HTTP_CLIENT_THREADS="128"
+$env:WORKER_PARALLELISM="32"
+$env:LLM_TIMEOUT="300"
+$env:LLM_RETRIES="2"
+$env:LLM_MAX_TOKENS="64"
 ```
 
-## Real LLM Mode
-
-OpenRouter:
+## 3. Provider Smoke Test
 
 ```powershell
-$env:LLM_PROVIDER="openrouter"
-$env:OPENROUTER_API_KEY="your_key"
-python main.py --users 20 --failures off
+python test_real_llm_provider.py
 ```
 
-HuggingFace:
+Expected:
+
+```text
+Provider: openai_compatible
+Latency: ...
+Response:
+...
+```
+
+## 4. Small Real Test
 
 ```powershell
-$env:LLM_PROVIDER="huggingface"
-$env:HUGGINGFACE_API_KEY="your_key"
-python main.py --users 20 --failures off
+python main.py --users 20 --workers 4 --strategy round_robin --failures off
 ```
 
-Ollama:
+## 5. Fault-Tolerance Test
 
 ```powershell
-$env:LLM_PROVIDER="ollama"
-$env:OLLAMA_MODEL="llama3.1"
-python main.py --users 20 --failures off
+$env:FAILURE_TRIGGER_TIME="1"
+$env:FAILURE_RECOVERY_TIME="10"
+$env:MAX_TASK_RETRIES="8"
+$env:REASSIGNMENT_BACKOFF="0.5"
+
+python main.py --users 50 --workers 4 --strategy round_robin --failures on
 ```
 
-Disable offline simulation:
+## 6. Final 1000-Request Real LLM Test
 
 ```powershell
-$env:ALLOW_SIMULATED_LLM="false"
-python main.py --users 20 --failures off
+python main.py --users 1000 --workers 8 --strategy round_robin --failures off
 ```
 
-## Useful Configuration
+Then:
 
 ```powershell
-$env:NUM_WORKERS="8"
-$env:WORKER_PARALLELISM="16"
-$env:CLIENT_CONCURRENCY_LIMIT="1000"
-$env:LOAD_BALANCING_STRATEGY="least_connections"
-python main.py
+python main.py --users 1000 --workers 8 --strategy round_robin --failures on
 ```
 
-Logs are written to `distributed_llm.log`.
+For full Thunder setup details, read `THUNDER_COMPUTE_RUNBOOK.md`.

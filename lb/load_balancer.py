@@ -44,7 +44,7 @@ class LoadBalancer:
             if self.strategy == "load_aware":
                 def worker_load(worker):
                     avg_latency = worker.get_average_latency()
-                    latency_score = avg_latency if avg_latency > 0 else config.LLM_BASE_LATENCY
+                    latency_score = avg_latency if avg_latency > 0 else config.ROUTING_DEFAULT_LATENCY
                     return (
                         worker.get_utilization(),
                         worker.get_active_connections(),

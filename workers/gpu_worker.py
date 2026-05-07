@@ -115,7 +115,8 @@ class GPUWorker:
             logger.info("Worker %s processing request %s", self.id, request.id)
             start_time = time.perf_counter()
 
-            await asyncio.sleep(config.GPU_SIMULATION_DELAY)
+            if config.WORKER_LOCAL_OVERHEAD > 0:
+                await asyncio.sleep(config.WORKER_LOCAL_OVERHEAD)
             context = await retrieve_context_async(request.query)
             llm_result = await run_llm_async(request.query, context)
 

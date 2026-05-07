@@ -1,83 +1,107 @@
-# Efficient Load Balancing and GPU Cluster Task Distribution for 1000+ Concurrent LLM Requests
+# Efficient Load Balancing and GPU Cluster Task Distribution for 1000+ Real LLM Requests
 
 ## Introduction
 
-Large language model applications receive bursts of concurrent requests that must be routed across limited GPU resources. This project implements a distributed serving prototype that combines load balancing, worker health tracking, retrieval augmented generation, real LLM API wrappers, and fault-tolerant reassignment. The implementation evolves the existing repository structure instead of replacing it.
+This project implements a distributed LLM serving system. The goal is to accept
+many concurrent user requests, distribute them across logical workers, retrieve
+relevant context using RAG, send prompts to a real GPU-hosted LLM, and report
+performance metrics.
 
 ## Problem Definition
 
-The target problem is to serve 1000+ concurrent LLM requests with low request loss and observable performance. The system must distribute work across multiple GPU-like workers, avoid overloaded nodes, detect worker failure, reassign failed tasks, retrieve relevant context for each query, and support real AI providers such as OpenRouter, HuggingFace, and Ollama.
+Serving LLM requests is expensive because inference is limited by GPU capacity.
+If many users send requests at once, the system needs scheduling, load
+balancing, fault handling, and observability. The project demonstrates these
+distributed systems concepts using a real Thunder Compute GPU node running an
+OpenAI-compatible LLM server.
 
 ## System Architecture
 
-The repository is organized into layers:
+The system has five main layers:
 
-- `client/load_generator.py`: creates asynchronous client requests.
-- `master/scheduler.py`: tracks in-flight, completed, failed, and reassigned requests.
-- `lb/load_balancer.py`: chooses workers using round robin, least connections, or load-aware routing.
-- `workers/gpu_worker.py`: represents GPU workers with capacity limits, failure state, RAG, and LLM inference.
-- `rag/retriever.py`: embeds documents and retrieves top-k relevant context.
-- `llm/inference.py`: calls real LLM providers with retries, timeouts, and latency logging.
-- `common/monitoring.py`: aggregates latency, throughput, provider, and worker metrics.
+- Client load generator: creates concurrent requests.
+- Master scheduler: tracks in-flight, completed, failed, and reassigned tasks.
+- Load balancer: assigns tasks to workers, mainly using round robin.
+- Worker nodes: retrieve RAG context and call the real LLM API.
+- Monitoring: reports latency, throughput, success rate, and worker usage.
 
 ## Implementation Details
 
-The client was upgraded from thread-per-user execution to `asyncio`, allowing the project to schedule 1000 users without creating 1000 OS threads. Each worker uses an async semaphore to model GPU parallelism. The scheduler records task state, the load balancer performs bounded retries, and the worker returns the real `worker_id` that completed each request.
+The project uses Python `asyncio` to generate high concurrency. Workers use
+capacity controls so many logical workers can call the external GPU inference
+server without blocking the whole application. The real LLM layer supports two
+providers only: `openai_compatible` for Thunder/vLLM and `ollama` for local
+fallback testing.
 
-The `config.py` module now supports environment-variable overrides for workers, concurrency, provider selection, retries, failure timing, and RAG top-k. The `main.py` entry point accepts command-line options for users, workers, strategy, and failure simulation.
+## Load Balancing Strategy
 
-## Load Balancing Strategies
+The primary strategy for delivery is round robin. Requests are assigned in order:
 
-Round robin distributes requests cyclically across active workers. It is simple and fair for homogeneous worker capacity.
+```text
+Worker 1, Worker 2, Worker 3, Worker 4, then Worker 1 again
+```
 
-Least connections chooses the active worker with the fewest current requests. This adapts better when request execution times differ.
-
-Load-aware routing evaluates worker utilization, active connections, historical average latency, failure count, and worker id. This makes the balancer prefer healthy, less busy, lower-latency workers.
+This gives a fair distribution and is simple to explain. The code also contains
+least-connections and load-aware strategies for comparison, but round robin is
+the main project demo.
 
 ## LLM Integration
 
-`llm/inference.py` implements provider wrappers for:
+The final LLM integration uses Thunder Compute running vLLM. vLLM exposes an
+OpenAI-compatible endpoint:
 
-- OpenRouter chat completions.
-- HuggingFace Inference API.
-- Local Ollama generation.
+```text
+http://THUNDER_IP:8000/v1/chat/completions
+```
 
-Each call uses a prompt that includes retrieved RAG context. The wrapper applies timeout handling, retry logic, provider fallback in `auto` mode, and request latency logging. If no real provider is configured, the system can run an explicitly labeled `simulated` provider for offline load testing. Setting `ALLOW_SIMULATED_LLM=false` enforces real-provider execution.
+The project sends RAG-enhanced prompts to this endpoint and records provider
+latency per request.
+
+Recommended model:
+
+```text
+Qwen/Qwen2.5-1.5B-Instruct
+```
 
 ## RAG Pipeline
 
-The RAG module includes a sample distributed-systems dataset. It embeds each document using normalized hashed vectors, embeds the query, performs top-k cosine retrieval, and injects the selected context into the LLM prompt. FAISS is used automatically when available; otherwise the standard-library cosine index keeps the project runnable without external packages.
+The RAG module stores a small distributed-systems knowledge dataset. For each
+request, it embeds the user query, scores documents by cosine similarity, selects
+the top-k documents, and injects those documents into the LLM prompt.
 
 ## Fault Tolerance
 
-Worker failure is simulated by marking a worker inactive during active load. The load balancer stops routing new work to inactive workers. If a worker fails during processing, the request raises an exception, is counted as a reassignment, and is retried on another active worker. Recovery reactivates the worker after a configurable delay.
+Fault tolerance means the system continues operating when a worker fails. During
+the failure demo, one worker is marked inactive. The load balancer skips inactive
+workers, and failed in-flight requests are retried on another active worker.
+The worker later recovers and rejoins the cluster.
 
 ## Testing and Results
 
-Commands used:
+Required tests:
 
 ```powershell
-python test_quick.py
-python test_strategies.py
-python main.py --users 1000 --failures on
+python test_real_llm_provider.py
+python main.py --users 20 --workers 4 --strategy round_robin --failures off
+python main.py --users 1000 --workers 8 --strategy round_robin --failures off
+python main.py --users 1000 --workers 8 --strategy round_robin --failures on
 ```
 
-Observed local 1000-user result on May 2, 2026:
+Success criteria:
 
-- Successful requests: 1000 / 1000.
-- Final failed requests: 0.
-- Reassigned requests: 250.
-- Average latency: about 0.428 seconds.
-- P95 latency: about 0.521 seconds.
-- Throughput: about 55 successful requests per second.
-- Failed worker recovered and rejoined the cluster.
-
-The local result used the simulated provider because no API credentials or local Ollama server were configured. Real provider execution is supported through environment variables.
+- Provider is `openai_compatible`.
+- 1000 total requests are generated.
+- Success rate is at least 95%.
+- Metrics show average latency, p95 latency, throughput, and per-worker counts.
+- Failure test shows failure detection, reassignment, and recovery.
 
 ## Limitations
 
-The current system runs as a single Python process, so workers are simulated nodes rather than separate machines. GPU behavior is represented with capacity limits and delay instead of CUDA execution. The default embedding implementation is a lightweight hashing approach; FAISS acceleration is optional. Real LLM throughput depends on external provider rate limits, API latency, and model availability.
+The workers are logical Python workers rather than separate physical machines.
+The real inference bottleneck is the Thunder GPU node. Throughput depends on the
+GPU type, model size, max tokens, and vLLM settings.
 
 ## Future Work
 
-Future improvements include adding gRPC between master and workers, true multi-process or multi-host workers, persistent queues for crash recovery, adaptive autoscaling, batching for GPU efficiency, circuit breakers for provider failures, a dashboard for live metrics, and a production vector database such as ChromaDB or a required FAISS dependency.
+Future improvements include physical worker processes, gRPC communication,
+persistent queues, dynamic autoscaling, live dashboards, and multi-GPU serving.
